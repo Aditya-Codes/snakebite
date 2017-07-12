@@ -14,6 +14,7 @@
 # the License.
 from snakebite.errors import FileNotFoundException
 from snakebite.errors import InvalidInputException
+from snakebite.errors import DirectoryException
 from snakebite.platformutils import get_current_username
 from minicluster_testbase import MiniClusterTestBase
 
@@ -54,6 +55,25 @@ class DeleteTest(MiniClusterTestBase):
         client_output = self.client.ls(['/'])
         paths = [node['path'] for node in client_output]
         self.assertFalse('/bar' in paths)
+
+    def test_recurse_set_to_None_should_be_treated_as_false(self):
+        client_output = self.client.ls(['/'])
+        paths = [node['path'] for node in client_output]
+        self.assertTrue('/test3' in paths)
+
+        list(self.client.delete(['/test3'], recurse=None))
+
+        client_output = self.client.ls(['/'])
+        paths = [node['path'] for node in client_output]
+        self.assertFalse('/test3' in paths)
+
+    def test_recurse_set_to_None_should_fail_to_delete_a_dir(self):
+        result = self.client.delete(['/dir2'], recurse=None)
+        self.assertRaises(DirectoryException, result.next)
+
+    def test_recurse_set_to_False_should_fail_to_delete_a_dir(self):
+        result = self.client.delete(['/dir2'], recurse=False)
+        self.assertRaises(DirectoryException, result.next)
 
 class DeleteWithTrashTest(MiniClusterTestBase):
     def setUp(self):

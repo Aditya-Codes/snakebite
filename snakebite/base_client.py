@@ -482,14 +482,14 @@ class BaseClient(object):
             raise InvalidInputException("delete: no path given")
 
         def _callback(path, node):
-            self._handle_delete(path, node, recurse)
+            return self._handle_delete(path, node, recurse)
 
         for item in self._find_items(paths, _callback, include_toplevel=True):
             if item:
                 yield item
 
     def _handle_delete(self, path, node, recurse=False):
-        if self._is_dir(node) and not recurse:
+        if True: # self._is_dir(node) and not recurse:
             raise DirectoryException("rm: `%s': Is a directory" % path)
 
         if self.__should_move_to_trash(path):
