@@ -3,11 +3,14 @@ import os
 import time
 from snakebite.minicluster import MiniCluster
 from snakebite.client import Client
+from snakebite.platformutils import get_current_username
 
 
 class MiniClusterTestBase(unittest2.TestCase):
 
     cluster = None
+    username = get_current_username()
+    trash_location = "/user/%s/.Trash/Current" % username
 
     @classmethod
     def setupClass(cls):
@@ -29,6 +32,13 @@ class MiniClusterTestBase(unittest2.TestCase):
             cls.cluster.put("/test1", "/test2")
             cls.cluster.put("/test3", "/test3") #1024 bytes
             cls.cluster.put("/test1", "/test4")
+
+            cls.cluster.mkdir('/empty_dir_1')
+            cls.cluster.mkdir('/empty_dir_2')
+            cls.cluster.mkdir('/empty_dir_3')
+            cls.cluster.mkdir('/empty_dir_4')
+
+            cls.cluster.mkdir('/empty_glob_dir')
 
             cls.cluster.mkdir("/zipped")
             cls.cluster.put("/zipped/test1.gz", "/zipped")
@@ -62,6 +72,28 @@ class MiniClusterTestBase(unittest2.TestCase):
         version = os.environ.get("HADOOP_PROTOCOL_VER", 9)
         self.cluster = self.__class__.cluster
         self.client = Client(self.cluster.host, self.cluster.port, int(version))
+
+    def __exists_or_is_dir(self, location_under_test):
+        return self.cluster.exists(location_under_test) or self.cluster.is_directory(location_under_test)
+
+    def assertNotExists(self, location_under_test):
+        self.assertFalse(self.__exists_or_is_dir(location_under_test))
+
+    def assertExists(self, location_under_test):
+        self.assertTrue(self.__exists_or_is_dir(location_under_test))
+
+    def assertTrashExists(self):
+        list(self.client.ls([self.trash_location]))
+
+    def assertInTrash(self, location_under_test):
+        self.assertTrashExists()
+        trash_location = "%s%s" % (self.trash_location, location_under_test)
+        self.assertTrue(self.__exists_or_is_dir(trash_location))
+
+    def assertNotInTrash(self, location_under_test):
+        self.assertTrashExists()
+        trash_location = "%s%s" % (self.trash_location, location_under_test)
+        self.assertFalse(self.__exists_or_is_dir(trash_location))
 
 
 class MiniClusterSpecificPortTest(unittest2.TestCase):

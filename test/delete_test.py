@@ -79,27 +79,6 @@ class DeleteWithTrashTest(MiniClusterTestBase):
     def setUp(self):
         super(DeleteWithTrashTest, self).setUp()
         self.client.use_trash = True
-        self.username = get_current_username()
-        self.trash_location = "/user/%s/.Trash/Current" % self.username
-
-    def assertNotExists(self, location_under_test):
-        self.assertFalse(self.client.test(location_under_test, exists=True))
-
-    def assertExists(self, location_under_test):
-        self.assertTrue(self.client.test(location_under_test, exists=True))
-
-    def assertTrashExists(self):
-        list(self.client.ls([self.trash_location]))
-
-    def assertInTrash(self, location_under_test):
-        self.assertTrashExists()
-        trash_location = "%s%s" % (self.trash_location, location_under_test)
-        self.assertTrue(self.client.test(trash_location, exists=True))
-
-    def assertNotInTrash(self, location_under_test):
-        self.assertTrashExists()
-        trash_location = "%s%s" % (self.trash_location, location_under_test)
-        self.assertFalse(self.client.test(trash_location, exists=True))
 
     def assertSecondaryTrash(self, location_under_test):
         client_output = self.client.ls([self.trash_location])

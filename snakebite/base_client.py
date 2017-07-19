@@ -489,8 +489,11 @@ class BaseClient(object):
                 yield item
 
     def _handle_delete(self, path, node, recurse=False):
-        if True: # self._is_dir(node) and not recurse:
+        if self._is_dir(node) and not recurse:
             raise DirectoryException("rm: `%s': Is a directory" % path)
+
+        if not recurse:
+            recurse = False
 
         if self.__should_move_to_trash(path):
             if path.endswith("/"):
@@ -553,7 +556,7 @@ class BaseClient(object):
             raise InvalidInputException("rmdir: no path given")
 
         def _callback(path, node):
-            return self._handle_delete(path, node)
+            return self._handle_rmdir(path, node)
 
         for item in self._find_items(paths, _callback, include_toplevel=True):
             if item:
