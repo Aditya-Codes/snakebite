@@ -73,14 +73,11 @@ class MiniClusterTestBase(unittest2.TestCase):
         self.cluster = self.__class__.cluster
         self.client = Client(self.cluster.host, self.cluster.port, int(version))
 
-    def __exists_or_is_dir(self, location_under_test):
-        return self.cluster.exists(location_under_test) or self.cluster.is_directory(location_under_test)
-
     def assertNotExists(self, location_under_test):
-        self.assertFalse(self.__exists_or_is_dir(location_under_test))
+        self.assertFalse(self.client.test(location_under_test, exists=True))
 
     def assertExists(self, location_under_test):
-        self.assertTrue(self.__exists_or_is_dir(location_under_test))
+        self.assertTrue(self.client.test(location_under_test, exists=True))
 
     def assertTrashExists(self):
         list(self.client.ls([self.trash_location]))
@@ -88,12 +85,12 @@ class MiniClusterTestBase(unittest2.TestCase):
     def assertInTrash(self, location_under_test):
         self.assertTrashExists()
         trash_location = "%s%s" % (self.trash_location, location_under_test)
-        self.assertTrue(self.__exists_or_is_dir(trash_location))
+        self.assertTrue(self.client.test(trash_location, exists=True))
 
     def assertNotInTrash(self, location_under_test):
         self.assertTrashExists()
         trash_location = "%s%s" % (self.trash_location, location_under_test)
-        self.assertFalse(self.__exists_or_is_dir(trash_location))
+        self.assertFalse(self.client.test(trash_location, exists=True))
 
 
 class MiniClusterSpecificPortTest(unittest2.TestCase):
