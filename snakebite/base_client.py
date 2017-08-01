@@ -65,7 +65,6 @@ class BaseClient(object):
 
         self.use_sasl = use_sasl
         self.hdfs_namenode_principal = hdfs_namenode_principal
-        self.service_stub_class = client_proto.ClientNamenodeProtocol_Stub
         self.use_trash = use_trash
         self.trash = self._join_user_path(".Trash")
         self._server_defaults = None
@@ -157,11 +156,13 @@ class BaseClient(object):
         if not mode:
             raise InvalidInputException("chmod: no mode given")
 
+        service = self._get_service()
+
         def _callback(path, node):
             request = client_proto.SetPermissionRequestProto()
             request.src = path
             request.permission.perm = mode
-            self.service.setPermission(request)
+            service.setPermission(request)
 
             return {"result": True, "path": path}
 
@@ -180,8 +181,8 @@ class BaseClient(object):
         if group:
             request.groupname = group
 
-        # TODO fix service call
-        self.service.setOwner(request)
+        service = self._get_service()
+        service.setOwner(request)
         return {"result": True, "path": path}
 
     def chown(self, paths, owner, recurse=False):
@@ -269,8 +270,8 @@ class BaseClient(object):
             request = client_proto.GetContentSummaryRequestProto()
             request.path = path
 
-            # TODO Fix service call
-            response = self.service.getContentSummary(request)
+            service = self._get_service()
+            response = service.getContentSummary(request)
             entry = {"path": path}
             for attribute in self.COUNT_ATTRIBUTES:
                 entry[attribute] = response.summary.__getattribute__(attribute)
@@ -295,8 +296,9 @@ class BaseClient(object):
         """
 
         def _callback(path, node):
+            service = self._get_service()
             request = client_proto.GetFsStatusRequestProto()
-            response = self.service.getFsStats(request)
+            response = service.getFsStats(request)
             entry = {
                 "filesystem": "hdfs://%s:%d" % (self.host, self.port)
             }
@@ -345,7 +347,8 @@ class BaseClient(object):
                 request = client_proto.GetContentSummaryRequestProto()
                 request.path = path
                 try:
-                    response = self.service.getContentSummary(request)
+                    service = self._get_service()
+                    response = service.getContentSummary(request)
                     return {"path": path, "length": response.summary.length}
                 except RequestError as e:
                     print(e)
@@ -393,7 +396,8 @@ class BaseClient(object):
         request = client_proto.RenameRequestProto()
         request.src = path
         request.dst = destination
-        response = self.service.rename(request)
+        service = self._get_service()
+        response = service.rename(request)
 
         return {"path": path, "result": response.result}
 
@@ -449,7 +453,8 @@ class BaseClient(object):
             request.dst = destination
             request.overwriteDest = overwriteDest
             try:
-                self.service.rename2(request)
+                service = self._get_service()
+                service.rename2(request)
             except RequestError as ex:
                 if ("FileAlreadyExistsException" in str(ex) or
                             "rename destination directory is not empty" in str(ex)):
@@ -528,7 +533,8 @@ class BaseClient(object):
             request = client_proto.DeleteRequestProto()
             request.src = path
             request.recursive = recurse
-            response = self.service.delete(request)
+            service = self._get_service()
+            response = service.delete(request)
             return {"path": path, "result": response.result}
 
     def __should_move_to_trash(self, path):
@@ -642,14 +648,15 @@ class BaseClient(object):
         request.blockSize = blocksize
 
         # The response doesn't contain anything
-        self.service.create(request)
+        service = self._get_service()
+        service.create(request)
 
         # Issue a CompleteRequestProto
         request = client_proto.CompleteRequestProto()
         request.src = path
         request.clientName = "snakebite"
 
-        return self.service.complete(request)
+        return service.complete(request)
 
     def setrep(self, paths, replication, recurse=False):
         """ Set the replication factor for paths
@@ -674,7 +681,8 @@ class BaseClient(object):
                 request = client_proto.SetReplicationRequestProto()
                 request.src = path
                 request.replication = replication
-                response = self.service.setReplication(request)
+                service = self._get_service()
+                response = service.setReplication(request)
                 return {"result": response.result, "path": path}
 
         for item in self._find_items(paths, _callback,
@@ -1052,7 +1060,8 @@ class BaseClient(object):
                     request.src = path
                     request.masked.perm = mode
                     request.createParent = create_parent
-                    response = self.service.mkdirs(request)
+                    service = self._get_service()
+                    response = service.mkdirs(request)
                     yield {"path": path, "result": response.result}
                 except RequestError as e:
                     yield {"path": path, "result": False, "error": str(e)}
@@ -1081,7 +1090,8 @@ class BaseClient(object):
 
         if not self._server_defaults or force_reload:
             request = client_proto.GetServerDefaultsRequestProto()
-            response = self.service.getServerDefaults(request).serverDefaults
+            service = self._get_service()
+            response = service.getServerDefaults(request).serverDefaults
             self._server_defaults = {
                 'blockSize': response.blockSize,
                 'bytesPerChecksum': response.bytesPerChecksum,
@@ -1152,14 +1162,14 @@ class BaseClient(object):
 
                 if (include_toplevel and fileinfo) or not self._is_dir(fileinfo.fs):
                     # Construct the full path before processing
-                    full_path = self._get_full_path(path, fileinfo.fs)
+                    full_path = self._get_path_with_node(path, fileinfo.fs)
                     log.debug("Added %s to to result set" % full_path)
                     entry = processor(full_path, fileinfo.fs)
                     yield entry
 
                 if self._is_dir(fileinfo.fs) and (include_children or recurse):
                     for node in self._get_dir_listing(path):
-                        full_path = self._get_full_path(path, node)
+                        full_path = self._get_path_with_node(path, node)
                         entry = processor(full_path, node)
                         yield entry
 
@@ -1179,7 +1189,7 @@ class BaseClient(object):
         return posixpath.join("/user", get_current_username(), path)
 
     @staticmethod
-    def _get_full_path(path, node):
+    def _get_path_with_node(path, node):
         if node.path:
             return posixpath.join(path, node.path)
         else:
@@ -1197,7 +1207,8 @@ class BaseClient(object):
         else:
             request.offset = long(0)
 
-        response = self.service.getBlockLocations(request)
+        service = self._get_service()
+        response = service.getBlockLocations(request)
 
         if response.locations.fileLength == 0:  # Can't read empty file
             yield ""
@@ -1266,7 +1277,8 @@ class BaseClient(object):
         request.src = path
         request.startAfter = start_after
         request.needLocation = False
-        listing = self.service.getListing(request)
+        service = self._get_service()
+        listing = service.getListing(request)
         if not listing:
             return
         for node in listing.dirList.partialListing:
@@ -1315,7 +1327,7 @@ class BaseClient(object):
         if fileinfo and self._is_dir(fileinfo.fs):
             # List all child nodes and match them agains the glob
             for node in self._get_dir_listing(check_path):
-                full_path = self._get_full_path(check_path, node)
+                full_path = self._get_path_with_node(check_path, node)
                 if fnmatch.fnmatch(full_path, match_path):
                     # If we have a match, but need to go deeper, we recurse
                     if rest and glob.has_magic(rest):
@@ -1328,7 +1340,7 @@ class BaseClient(object):
                         fi = self._get_file_info(final_path)
                         if fi and self._is_dir(fi.fs):
                             for n in self._get_dir_listing(final_path):
-                                full_child_path = self._get_full_path(final_path, n)
+                                full_child_path = self._get_path_with_node(final_path, n)
                                 yield processor(full_child_path, n)
                         elif fi:
                             yield processor(final_path, fi.fs)
@@ -1338,11 +1350,11 @@ class BaseClient(object):
                         if self._is_dir(node):
                             if include_toplevel:
                                 yield processor(full_path, node)
-                            fp = self._get_full_path(check_path, node)
+                            fp = self._get_path_with_node(check_path, node)
                             dir_list = self._get_dir_listing(fp)
                             if dir_list:  # It might happen that the directory above has been removed
                                 for n in dir_list:
-                                    full_child_path = self._get_full_path(fp, n)
+                                    full_child_path = self._get_path_with_node(fp, n)
                                     yield processor(full_child_path, n)
                         else:
                             yield processor(full_path, node)
@@ -1356,8 +1368,12 @@ class BaseClient(object):
     def _get_file_info(self, path):
         request = client_proto.GetFileInfoRequestProto()
         request.src = path
-        return self.service.getFileInfo(request)
+        service = self._get_service()
+        return service.getFileInfo(request)
 
     @staticmethod
     def _normalize_path(path):
         return posixpath.normpath(re.sub('/+', '/', path))
+
+    def _get_service(self):
+        pass

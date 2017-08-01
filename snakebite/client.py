@@ -123,6 +123,9 @@ class Client(BaseClient):
 
         log.debug("Created client for %s:%s with trash=%s and sasl=%s" % (host, port, use_trash, use_sasl))
 
+    def _get_service(self):
+        return self.service
+
 
 class HAClient(Client):
     ''' Snakebite client with support for High Availability
